@@ -1,75 +1,60 @@
 #include "module.h"
+#include "account.h"
 
 class CommandNSTaxonomy : public Command
 {
 public:
     CommandNSTaxonomy(Module *creator) : Command(creator, "nickserv/taxonomy", 0, 1)
     {
-        this->SetDesc("View all properties set on your account or another user's account");
-        this->SetSyntax("[\037nickname\037]");
+        this->SetDesc("List all properties on a specified account");
+        this->SetSyntax("[nickname]");
     }
 
     void Execute(CommandSource &source, const std::vector<Anope::string> &params) override
     {
         NickAlias *na = nullptr;
-
-        if (params.empty()) // No nickname provided, use the command source's account
+        if (params.empty())
         {
-            na = NickAlias::Find(source.GetAccount()->GetNick());
+            na = NickAlias::Find(source.GetAccount()->display);
+            if (!na)
+            {
+                source.Reply("You are not logged in to an account.");
+                return;
+            }
         }
-        else // A nickname is provided
+        else
         {
             const Anope::string &nickname = params[0];
             na = NickAlias::Find(nickname);
-
             if (!na)
             {
-                source.Reply("Nickname \002%s\002 is not registered.", nickname.c_str());
-                return;
-            }
-
-            if (!source.GetAccount() || !source.GetAccount()->IsServicesOper())
-            {
-                source.Reply("You do not have permission to view properties for other users.");
+                source.Reply("The nickname '%s' was not found.", nickname.c_str());
                 return;
             }
         }
 
-        if (!na || !na->nc)
-        {
-            source.Reply("You must be identified to use this command.");
-            return;
-        }
+        source.Reply("Properties for account %s:", na->nc->display.c_str());
 
-        bool has_properties = false;
-
-        // Iterate through metadata to find properties
-        for (const auto &metadata : na->nc->GetExt())
+        // Accessing extensions directly using GetItems to get all metadata
+        const Anope::string metadataKey = "property:";
+        for (const auto &item : na->nc->GetItems())
         {
-            if (metadata.first.find("property:") == 0) // Check if key starts with "property:"
+            // Attempt to cast item to Anope::string or another suitable type
+            Anope::string *strItem = dynamic_cast<Anope::string *>(item);
+            if (strItem)
             {
-                has_properties = true;
-                source.Reply("\002%s\002: \002%s\002",
-                             metadata.first.substr(9).c_str(), // Remove "property:" prefix
-                             metadata.second->data.c_str());
+                if (strItem->find(metadataKey) == 0)
+                {
+                    Anope::string value = *strItem; // Assuming item is of type Anope::string
+                    source.Reply("  %s", value.c_str());
+                }
             }
-        }
-
-        if (!has_properties)
-        {
-            if (params.empty())
-                source.Reply("No properties are set on your account.");
             else
-                source.Reply("No properties are set on \002%s\002's account.", na->nick.c_str());
+            {
+                // Handle case where item isn't an Anope::string or log an error
+                source.Reply("  Non-string item encountered.");
+            }
         }
-    }
-
-    bool OnHelp(CommandSource &source, const Anope::string &) override
-    {
-        source.Reply("Syntax: \002TAXONOMY [nickname]\002\n"
-                     "Displays all properties set on your nickname account, or on the account of the specified nickname.\n"
-                     "You must have the appropriate permissions to view another user's properties.");
-        return true;
     }
 };
 
@@ -82,7 +67,7 @@ public:
         : Module(modname, creator, THIRD), commandnstaxonomy(this)
     {
         this->SetAuthor("Coder");
-        this->SetVersion("1.1");
+        this->SetVersion("1.0");
     }
 };
 

@@ -1,38 +1,29 @@
 #include "module.h"
+#include "account.h"
 
 class CommandNSSetProperty : public Command
 {
 public:
-    CommandNSSetProperty(Module *creator) : Command(creator, "nickserv/set/property", 2, 2)
+    CommandNSSetProperty(Module *creator) : Command(creator, "nickserv/set_property", 2, 2)
     {
         this->SetDesc("Set a custom property on your account");
-        this->SetSyntax("\037property\037 \037value\037");
+        this->SetSyntax("<property> <value>");
     }
 
     void Execute(CommandSource &source, const std::vector<Anope::string> &params) override
     {
         const Anope::string &property = params[0];
         const Anope::string &value = params[1];
-        NickAlias *na = NickAlias::Find(source.GetAccount()->GetNick());
 
-        if (!na || !na->nc)
+        NickAlias *na = NickAlias::Find(source.GetAccount()->display);
+        if (!na)
         {
-            source.Reply("You must be identified to use this command.");
+            source.Reply("You are not logged in to an account.");
             return;
         }
 
-        // Store the property as metadata
-        na->nc->ExtendMetadata("property:" + property, value);
-
-        source.Reply("Property \002%s\002 set to \002%s\002.", property.c_str(), value.c_str());
-    }
-
-    bool OnHelp(CommandSource &source, const Anope::string &) override
-    {
-        source.Reply("Syntax: \002SET PROPERTY <property> <value>\002\n"
-                     "Allows you to set a custom property for your nickname account.\n"
-                     "These properties can be used to store additional metadata.");
-        return true;
+        na->nc->Extend<Anope::string>("property:" + property, value);
+        source.Reply("Property '%s' set to '%s'.", property.c_str(), value.c_str());
     }
 };
 
